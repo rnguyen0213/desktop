@@ -3,6 +3,14 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { nsZenMultiWindowFeature } from "chrome://browser/content/zen-components/ZenCommonUtils.mjs";
+import {
+  DEFAULT_TINT_PRESET,
+  TINT_PRESETS,
+  createTintSpec,
+  getTintPreset,
+  parseTintColor,
+} from "resource:///modules/zen/ZenWindowTint.mjs";
+import { nsZenWindowTintLayer } from "resource:///modules/zen/ZenWindowTintLayer.mjs";
 
 const kMinLayerAlpha = 0.2;
 const kMaxLayerAlpha = 0.88;
@@ -157,12 +165,15 @@ export class nsZenThemePicker extends nsZenMultiWindowFeature {
   static MAX_DOTS = 3;
 
   currentOpacity = 0.5;
+  // The window tint preset of the theme being shown or edited, if any.
+  currentTintPreset = null;
   dots = [];
   useAlgo = "";
   #lastNoiseTexture = null;
   #lastNoiseTextureType = null;
   currentTextureType = kDefaultTexture;
   #currentLightness = 50;
+  #windowTint = null;
 
   #allowTransparencyOnSidebar = Services.prefs.getBoolPref(
     "zen.theme.acrylic-sidebar",
@@ -325,6 +336,11 @@ export class nsZenThemePicker extends nsZenMultiWindowFeature {
     document
       .getElementById("PanelUI-zen-gradient-generator-color-pages")
       .addEventListener("click", async event => {
+        const swatch = event.target.closest("[data-tint-preset]");
+        if (swatch) {
+          this.applyTintPreset(swatch.getAttribute("data-tint-preset"));
+          return;
+        }
         const target = event.target;
         const rawPosition = target.getAttribute("data-position");
         if (!rawPosition) {
@@ -375,6 +391,35 @@ export class nsZenThemePicker extends nsZenMultiWindowFeature {
       });
   }
 
+  /**
+   * Makes the space being edited use one of the window tint presets. Its
+   * colours are stored as custom colours, so the rest of the picker (and
+   * anything reading `gradientColors`) keeps working; `tintPreset` tells
+   * the window to draw them as a dithered tint instead of a CSS gradient.
+   *
+   * @param {string} presetId One of TINT_PRESETS' ids.
+   */
+  applyTintPreset(presetId) {
+    const preset = getTintPreset(presetId);
+    if (!preset) {
+      return;
+    }
+    for (const dot of this.dots) {
+      dot.element.remove();
+    }
+    this.dots = [];
+    this.resetCustomColorList();
+    for (const color of preset.stops) {
+      this.addColorToCustomList(color);
+    }
+    this.currentTintPreset = preset.id;
+    if (preset.stops.length) {
+      this.currentOpacity = preset.opacity;
+    }
+    this.currentTexture = 0;
+    this.updateCurrentWorkspace();
+  }
+
   initColorPages() {
     const leftButton = document.getElementById(
       "PanelUI-zen-gradient-generator-color-page-left"
@@ -386,6 +431,11 @@ export class nsZenThemePicker extends nsZenMultiWindowFeature {
       "PanelUI-zen-gradient-generator-color-pages"
     );
     const pages = pagesWrapper.children;
+    if (pages.length <= 1) {
+      leftButton.hidden = true;
+      rightButton.hidden = true;
+      return;
+    }
     pagesWrapper.addEventListener("wheel", event => {
       event.preventDefault();
       event.stopPropagation();
@@ -1783,15 +1833,149 @@ export class nsZenThemePicker extends nsZenMultiWindowFeature {
     colors = [],
     opacity = 0.5,
     texture = 0,
-    textureType = kDefaultTexture
+    textureType = kDefaultTexture,
+    tintPreset = null
   ) {
-    return {
+    const theme = {
       type: "gradient",
       gradientColors: colors ? colors.filter(color => color) : [], // remove undefined
       opacity,
       texture,
       textureType,
     };
+    if (tintPreset) {
+      theme.tintPreset = tintPreset;
+    }
+    return theme;
+  }
+
+  /**
+   * @param {string} presetId One of TINT_PRESETS' ids.
+   * @returns {object} A theme that draws the given window tint.
+   */
+  static getTintTheme(presetId = DEFAULT_TINT_PRESET) {
+    const preset =
+      getTintPreset(presetId) ?? getTintPreset(DEFAULT_TINT_PRESET);
+    const colors = preset.stops.map((c, index) => ({
+      c,
+      isCustom: true,
+      isPrimary: index === 0,
+      type: "custom",
+    }));
+    return nsZenThemePicker.getTheme(
+      colors,
+      preset.stops.length ? preset.opacity : 0.5,
+      0,
+      kDefaultTexture,
+      preset.id
+    );
+  }
+
+  /**
+   * Returns the window tint preset a theme uses, or null. The preset only
+   * counts while the theme's colours are still exactly the preset's, so
+   * editing the colours in any other way turns it back into a regular theme.
+   */
+  static getThemeTintPreset(theme) {
+    const preset = getTintPreset(theme?.tintPreset);
+    const colors = theme?.gradientColors ?? [];
+    if (!preset || colors.length !== preset.stops.length) {
+      return null;
+    }
+    const matches = colors.every((color, index) => {
+      const actual = color.isCustom && parseTintColor(color.c);
+      const expected = parseTintColor(preset.stops[index]);
+      return (
+        actual &&
+        actual[0] === expected[0] &&
+        actual[1] === expected[1] &&
+        actual[2] === expected[2] &&
+        Math.abs(actual[3] - expected[3]) < 1 / 255
+      );
+    });
+    return matches ? preset : null;
+  }
+
+  /**
+   * @returns {object|null} The window tint preset whose colours are exactly
+   *   `colors`, if any.
+   */
+  static findTintPresetForColors(colors) {
+    return (
+      TINT_PRESETS.find(
+        preset =>
+          preset.stops.length &&
+          nsZenThemePicker.getThemeTintPreset({
+            tintPreset: preset.id,
+            gradientColors: colors,
+          })
+      ) ?? null
+    );
+  }
+
+  static getTintTextColor(isDarkMode) {
+    return isDarkMode ? [255, 255, 255, 1] : [26, 26, 26, 1];
+  }
+
+  get windowTint() {
+    this.#windowTint ??= new nsZenWindowTintLayer(
+      lazy.browserBackgroundElement
+    );
+    return this.#windowTint;
+  }
+
+  /**
+   * The backgrounds for a theme:
+   *  - gradient: the CSS background of the window, behind the browser UI.
+   *  - toolbarGradient: the CSS background of the floating compact mode
+   *    toolbars, which sit over web content and so must be opaque.
+   *  - previewGradient: a CSS rendition of the window background for small
+   *    previews such as the library's space cards.
+   *  - tint: what the window tint layer should draw, or null.
+   */
+  getThemeGradients(theme) {
+    const colors = theme?.gradientColors ?? [];
+    const tintPreset = nsZenThemePicker.getThemeTintPreset(theme);
+    if (!tintPreset) {
+      const gradient = this.getGradient(colors);
+      return {
+        gradient,
+        toolbarGradient: this.getGradient(colors, true),
+        previewGradient: gradient,
+        tint: null,
+      };
+    }
+    // Light mode shows the plain backdrop, without a tint.
+    const tint = this.isDarkMode
+      ? createTintSpec(tintPreset, theme.opacity ?? tintPreset.opacity)
+      : null;
+    const tintGradient = this.#getTintCSSGradient(tint);
+    const toolbarBase = this.getToolbarModifiedBase();
+    return {
+      gradient: "transparent",
+      toolbarGradient: tintGradient
+        ? `${tintGradient}, linear-gradient(${toolbarBase}, ${toolbarBase})`
+        : toolbarBase,
+      previewGradient: tintGradient ?? "transparent",
+      tint,
+    };
+  }
+
+  /**
+   * A CSS approximation of a tint, for places too small to need dithering.
+   */
+  #getTintCSSGradient(tint) {
+    if (!tint) {
+      return null;
+    }
+    const stops = tint.stops.map(
+      ({ r, g, b, a, position }) =>
+        `rgba(${r}, ${g}, ${b}, ${a}) ${position * 100}%`
+    );
+    if (stops.length === 1) {
+      stops.push(stops[0].replace(/ \S+%$/, " 100%"));
+    }
+    return `linear-gradient(to bottom right, ${stops.join(", ")})`;
   }
 
   updateNoise(texture, textureType = kDefaultTexture) {
@@ -1893,6 +2077,16 @@ export class nsZenThemePicker extends nsZenMultiWindowFeature {
     return { "--toolbox-textcolor": `rgba(${r}, ${g}, ${b}, ${kTextOpacity})` };
   }
 
+  // Like toolbarTextStyles(), but window tints keep plain white or near black
+  // text rather than one tinted with the accent colour.
+  toolbarTextStylesFor(tintPreset, accentColor, isDarkMode) {
+    if (!tintPreset) {
+      return this.toolbarTextStyles(accentColor, isDarkMode);
+    }
+    const [r, g, b, a] = nsZenThemePicker.getTintTextColor(isDarkMode);
+    return { "--toolbox-textcolor": `rgba(${r}, ${g}, ${b}, ${a})` };
+  }
+
   getMostDominantColor(allColors) {
     const color = this.getPrimaryColor(allColors);
     if (typeof color === "string") {
@@ -1975,6 +2169,7 @@ export class nsZenThemePicker extends nsZenMultiWindowFeature {
             "--zen-main-browser-background-toolbar"
           )
         );
+        browser.gZenThemePicker.windowTint.copyCurrentToOld();
         [backgroundElement, toolbarElement].forEach(element => {
           browser.gZenThemePicker.keepGrainAsOld(element);
           element.style.setProperty("--zen-background-opacity", 1);
@@ -1987,6 +2182,16 @@ export class nsZenThemePicker extends nsZenMultiWindowFeature {
       browser.gZenThemePicker.currentTexture = workspaceTheme.texture ?? 0;
       browser.gZenThemePicker.currentTextureType =
         workspaceTheme.textureType ?? kDefaultTexture;
+      const tintPreset = nsZenThemePicker.getThemeTintPreset(workspaceTheme);
+      browser.gZenThemePicker.currentTintPreset = tintPreset?.id ?? null;
+      for (const swatch of browser.document.querySelectorAll(
+        "#PanelUI-zen-gradient-generator-color-pages [data-tint-preset]"
+      )) {
+        swatch.toggleAttribute(
+          "selected",
+          swatch.getAttribute("data-tint-preset") === tintPreset?.id
+        );
+      }
 
       let dominantColor = this.getMostDominantColor(
         workspaceTheme.gradientColors
@@ -2047,6 +2252,7 @@ export class nsZenThemePicker extends nsZenMultiWindowFeature {
       )) {
         // disable if there are no buttons
         button.disabled =
+          !!tintPreset ||
           workspaceTheme.gradientColors.length === 0 ||
           (button.id === "PanelUI-zen-gradient-generator-color-add"
             ? workspaceTheme.gradientColors.length >= nsZenThemePicker.MAX_DOTS
@@ -2112,15 +2318,11 @@ export class nsZenThemePicker extends nsZenMultiWindowFeature {
         : browser.gZenThemePicker.getGradientForWorkspace(
             appliesToWindow ? windowWorkspace : workspace
           );
-      const gradient =
-        cached?.gradient ??
-        browser.gZenThemePicker.getGradient(workspaceTheme.gradientColors);
-      const gradientToolbar =
-        cached?.toolbarGradient ??
-        browser.gZenThemePicker.getGradient(
-          workspaceTheme.gradientColors,
-          true
-        );
+      const {
+        gradient,
+        toolbarGradient: gradientToolbar,
+        tint,
+      } = cached ?? browser.gZenThemePicker.getThemeGradients(workspaceTheme);
       if (appliesToWindow) {
         browser.gZenThemePicker.updateNoise(
           workspaceTheme.texture,
@@ -2144,6 +2346,8 @@ export class nsZenThemePicker extends nsZenMultiWindowFeature {
           "--zen-main-browser-background",
           gradient
         );
+        browser.gZenThemePicker.windowTint.setTint("current", tint);
+        docElement.toggleAttribute("zen-window-tint", !!tintPreset);
         const isDarkModeWindow = browser.gZenThemePicker.isDarkMode;
         if (isDefaultTheme) {
           docElement.setAttribute("zen-default-theme", "true");
@@ -2160,7 +2364,21 @@ export class nsZenThemePicker extends nsZenMultiWindowFeature {
             ) === 0;
 
           let isDarkMode = isDarkModeWindow;
-          if (!isDefaultTheme && !this.isLegacyVersion) {
+          if (tintPreset) {
+            // Tints follow the window's color scheme rather than forcing one
+            // from their colours.
+            docElement.removeAttribute("zen-should-be-dark-mode");
+            if (tintPreset.stops.length) {
+              browser.gZenThemePicker.panel.removeAttribute(
+                "invalidate-controls"
+              );
+            } else {
+              browser.gZenThemePicker.panel.setAttribute(
+                "invalidate-controls",
+                "true"
+              );
+            }
+          } else if (!isDefaultTheme && !this.isLegacyVersion) {
             // Check for the primary color
             isDarkMode =
               browser.gZenThemePicker.shouldBeDarkMode(dominantColor);
@@ -2183,7 +2401,11 @@ export class nsZenThemePicker extends nsZenMultiWindowFeature {
             this.getAccentColorForUI(dominantColor, isDarkMode)
           );
           for (const [property, value] of Object.entries(
-            browser.gZenThemePicker.toolbarTextStyles(dominantColor, isDarkMode)
+            browser.gZenThemePicker.toolbarTextStylesFor(
+              tintPreset,
+              dominantColor,
+              isDarkMode
+            )
           )) {
             docElement.style.setProperty(property, value);
           }
@@ -2343,7 +2565,7 @@ export class nsZenThemePicker extends nsZenMultiWindowFeature {
   updateCurrentWorkspace(skipSave = true) {
     this.updated = skipSave;
     const dots = this.panel.querySelectorAll(".zen-theme-picker-dot");
-    const colors = Array.from(dots)
+    let colors = Array.from(dots)
       .sort(
         (a, b) => a.getAttribute("data-index") - b.getAttribute("data-index")
       )
@@ -2373,11 +2595,25 @@ export class nsZenThemePicker extends nsZenMultiWindowFeature {
         };
       })
       .filter(color => Boolean(color)); // remove nulls
+    if (this.currentTintPreset) {
+      const tintPreset = nsZenThemePicker.getThemeTintPreset({
+        tintPreset: this.currentTintPreset,
+        gradientColors: colors,
+      });
+      if (!tintPreset && colors.some(color => !color.isCustom)) {
+        // A colour was picked from the gradient: leave the tint behind,
+        // along with its colours.
+        colors = colors.filter(color => !color.isCustom);
+        this.resetCustomColorList();
+      }
+      this.currentTintPreset = tintPreset?.id ?? null;
+    }
     const gradient = nsZenThemePicker.getTheme(
       colors,
       this.currentOpacity,
       this.currentTexture,
-      this.currentTextureType
+      this.currentTextureType,
+      this.currentTintPreset
     );
     let currentWorkspace = this.workspaceBeingEdited;
 
@@ -2487,10 +2723,13 @@ export class nsZenThemePicker extends nsZenMultiWindowFeature {
     this.#currentLightness = theme.lightness ?? 50;
     let gradient;
     let toolbarGradient;
+    let previewGradient;
+    let tint = null;
     if (getGradient) {
-      gradient = this.getGradient(colors);
-      toolbarGradient = this.getGradient(colors, true);
+      ({ gradient, toolbarGradient, previewGradient, tint } =
+        this.getThemeGradients(theme));
     }
+    const tintPreset = nsZenThemePicker.getThemeTintPreset(theme);
     let dominantColor = this.getMostDominantColor(colors);
     const isDefaultTheme = !dominantColor;
     if (isDefaultTheme) {
@@ -2498,20 +2737,22 @@ export class nsZenThemePicker extends nsZenMultiWindowFeature {
     }
     let isDarkMode = this.isDarkMode;
     let isExplicitMode = false;
-    if (!isDefaultTheme && !this.isLegacyVersion) {
+    if (!isDefaultTheme && !this.isLegacyVersion && !tintPreset) {
       // Check for the primary color
       isDarkMode = this.shouldBeDarkMode(dominantColor);
       isExplicitMode = true;
     }
     const primaryColor = this.getAccentColorForUI(dominantColor, isDarkMode);
     const paletteStyles = {
-      ...this.toolbarTextStyles(dominantColor, isDarkMode),
+      ...this.toolbarTextStylesFor(tintPreset, dominantColor, isDarkMode),
       "--zen-primary-color": primaryColor,
     };
     this.#gradientsCache[uuid] = {
       signature,
       gradient,
       toolbarGradient,
+      previewGradient,
+      tint,
       grain: theme.texture ?? 0,
       grainTexture: theme.textureType ?? kDefaultTexture,
       isDarkMode,

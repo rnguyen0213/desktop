@@ -2218,6 +2218,7 @@ class nsZenWorkspaces {
           grain: nextGrain,
           grainTexture: nextGrainTexture,
           toolbarGradient: nextToolbarGradient,
+          tint: nextTint,
         } = gZenThemePicker.getGradientForWorkspace(nextWorkspace);
         const percentage = Math.abs(offsetPixels) / 200;
         [lazy.browserBackgroundElement, lazy.toolbarBackgroundElement].forEach(
@@ -2253,6 +2254,7 @@ class nsZenWorkspaces {
               }
             )
           );
+          gZenThemePicker.windowTint.setTint("old", nextTint);
           this.#setAnimatingBackground(true);
         }
       }
@@ -2544,6 +2546,7 @@ class nsZenWorkspaces {
     );
     this.#currentSpaceSwitchContext.animations = [];
     this.#setAnimatingBackground(false);
+    gZenThemePicker.windowTint.releaseOld();
     if (shouldAnimate) {
       for (const data of essentialsAnimData) {
         if (this.creatingWorkspaceId && data.finalOffset) {
@@ -2890,7 +2893,7 @@ class nsZenWorkspaces {
       uuid: gZenUIManager.generateUuidv4(),
       icon,
       name,
-      theme: nsZenThemePicker.getTheme([]),
+      theme: nsZenThemePicker.getTintTheme(),
       containerTabId,
     };
     return workspace;

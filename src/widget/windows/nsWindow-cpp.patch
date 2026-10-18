@@ -1,0 +1,125 @@
+diff --git a/widget/windows/nsWindow.cpp b/widget/windows/nsWindow.cpp
+index eb3baef67739bf7660e0104d19908108ba8277d7..ecbcef12631dcac1ec6666139006254fb6afe67a 100644
+--- a/widget/windows/nsWindow.cpp
++++ b/widget/windows/nsWindow.cpp
+@@ -2646,6 +2646,10 @@ void nsWindow::SetColorScheme(const Maybe<ColorScheme>& aScheme) {
+                         sizeof dark);
+   DwmSetWindowAttribute(mWnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &dark,
+                         sizeof dark);
++  // This is called again whenever the chrome's color scheme changes,
++  // including when Windows switches between dark and light.
++  mZenDarkFrame = dark;
++  ZenUpdateWindowFrame();
+ }
+ 
+ void nsWindow::SetMicaBackdrop(bool aEnabled) {
+@@ -2683,8 +2687,14 @@ void nsWindow::UpdateMicaBackdrop(bool aForce) {
+         return DWMSBT_TABBEDWINDOW;
+     }
+   }();
+-  ::DwmSetWindowAttribute(mWnd, DWMWA_SYSTEMBACKDROP_TYPE, &backdrop,
+-                          sizeof backdrop);
++  const HRESULT backdropResult = ::DwmSetWindowAttribute(
++      mWnd, DWMWA_SYSTEMBACKDROP_TYPE, &backdrop, sizeof backdrop);
++  if (mIsZenBrowserWindow && useBackdrop && FAILED(backdropResult)) {
++    // Zen: treat Mica as unavailable everywhere, so that the browser UI
++    // stops relying on a backdrop and draws a solid base instead.
++    WinUtils::SetMicaFailed();
++  }
++  ZenUpdateWindowFrame();
+   if (IsPopup()) {
+     // For popups, we need a couple extra tweaks:
+     //  * We want the native rounded corners and borders (as otherwise we can't
+@@ -2700,6 +2710,56 @@ void nsWindow::UpdateMicaBackdrop(bool aForce) {
+   }
+ }
+ 
++bool nsWindow::ZenKeepsFrameActive() const {
++  return mIsZenBrowserWindow && mMicaBackdrop && WinUtils::MicaEnabled();
++}
++
++// Zen: browser windows show the acrylic backdrop over the whole window, under
++// a see-through tint drawn by the front end. Give them a frame that suits it
++// and keep the backdrop when the window is inactive (see WM_NCACTIVATE).
++void nsWindow::ZenUpdateWindowFrame() {
++  if (!mIsZenBrowserWindow || !mWnd) {
++    return;
++  }
++  const bool useBackdrop = ZenKeepsFrameActive();
++  const int8_t state = (useBackdrop ? 1 : 0) | (mZenDarkFrame ? 2 : 0);
++  if (state == mZenAppliedFrameState) {
++    return;
++  }
++  mZenAppliedFrameState = state;
++
++  // Without this, "Show accent color on title bars" paints an accent band
++  // across the top of the window.
++  const COLORREF caption =
++      useBackdrop ? DWMWA_COLOR_NONE : DWMWA_COLOR_DEFAULT;
++  const COLORREF border = !useBackdrop    ? DWMWA_COLOR_DEFAULT
++                          : mZenDarkFrame ? 0x00454545
++                                          : 0x00D9D9D9;
++  const DWM_WINDOW_CORNER_PREFERENCE corner =
++      useBackdrop ? DWMWCP_ROUND : DWMWCP_DEFAULT;
++  ::DwmSetWindowAttribute(mWnd, DWMWA_CAPTION_COLOR, &caption, sizeof caption);
++  ::DwmSetWindowAttribute(mWnd, DWMWA_BORDER_COLOR, &border, sizeof border);
++  ::DwmSetWindowAttribute(mWnd, DWMWA_WINDOW_CORNER_PREFERENCE, &corner,
++                          sizeof corner);
++
++  UpdateOpaqueRegionInternal();
++  if (useBackdrop) {
++    // In case the window is currently inactive, see WM_NCACTIVATE.
++    ::PostMessageW(mWnd, WM_NCACTIVATE, TRUE, -1);
++  }
++}
++
++void nsWindow::SetWindowClass(const nsAString& aXulWinType,
++                              const nsAString& aXulWinClass,
++                              const nsAString& aXulWinName) {
++  if (mWindowType != WindowType::TopLevel || mIsZenBrowserWindow ||
++      !aXulWinType.EqualsLiteral("navigator:browser")) {
++    return;
++  }
++  mIsZenBrowserWindow = true;
++  ZenUpdateWindowFrame();
++}
++
+ LayoutDeviceIntMargin nsWindow::NormalWindowNonClientOffset() const {
+   MOZ_ASSERT(mCustomNonClient);
+   // We're dealing with a "normal" window (not maximized, minimized, or
+@@ -5047,7 +5107,8 @@ bool nsWindow::ProcessMessageInternal(UINT msg, WPARAM& wParam, LPARAM& lParam,
+       }
+ 
+     case WM_NCACTIVATE: {
+-      if (!mCustomNonClient) {
++      const bool zenKeepFrameActive = ZenKeepsFrameActive();
++      if (!mCustomNonClient && !zenKeepFrameActive) {
+         break;
+       }
+ 
+@@ -5067,6 +5128,14 @@ bool nsWindow::ProcessMessageInternal(UINT msg, WPARAM& wParam, LPARAM& lParam,
+       // [1]:
+       // https://learn.microsoft.com/en-us/windows/win32/winmsg/wm-ncactivate
+       lParam = -1;
++
++      // Zen: while a window is inactive DWM replaces the acrylic backdrop
++      // with a flat grey. Let DefWindowProc believe the frame is still active
++      // so the backdrop stays. Gecko tracks the real activation state through
++      // WM_ACTIVATE, which is what :-moz-window-inactive follows.
++      if (zenKeepFrameActive) {
++        wParam = TRUE;
++      }
+     } break;
+ 
+     case WM_NCPAINT: {
+@@ -7337,7 +7406,9 @@ void nsWindow::UpdateOpaqueRegionInternal() {
+     // glass. Comments in MSDN indicate all values must be set to -1 to get a
+     // full sheet of glass.
+     margins = {-1, -1, -1, -1};
+-    if (!mOpaqueRegion.IsEmpty()) {
++    // Zen: browser windows keep the backdrop under the whole window, since
++    // the tint drawn over it covers the whole window too.
++    if (!mOpaqueRegion.IsEmpty() && !ZenKeepsFrameActive()) {
+       LayoutDeviceIntRect clientBounds = GetClientBounds();
+       // Find the largest rectangle and use that to calculate the inset.
+       LayoutDeviceIntRect largest = mOpaqueRegion.GetLargestRectangle();

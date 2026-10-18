@@ -1,0 +1,28 @@
+diff --git a/widget/windows/WinUtils.cpp b/widget/windows/WinUtils.cpp
+index d2f26a5380a80c595951a4a2f16556e6eb5ef57b..4e71f6d61c8e8ae96e9c8ebad463715c2f3f0e61 100644
+--- a/widget/windows/WinUtils.cpp
++++ b/widget/windows/WinUtils.cpp
+@@ -2027,8 +2027,22 @@ bool WinUtils::MicaAvailable() {
+   return sAvailable;
+ }
+ 
++static bool sZenMicaFailed = false;
++
++void WinUtils::SetMicaFailed() {
++  if (sZenMicaFailed) {
++    return;
++  }
++  sZenMicaFailed = true;
++  // Update the windows and media queries off this call stack, we're in the
++  // middle of updating a window's backdrop.
++  NS_DispatchToMainThread(NS_NewRunnableFunction(
++      "WinUtils::SetMicaFailed", [] { WinUtils::UpdateMicaInAllWindows(); }));
++}
++
+ bool WinUtils::MicaEnabled() {
+-  return MicaAvailable() && StaticPrefs::widget_windows_mica();
++  return MicaAvailable() && StaticPrefs::widget_windows_mica() &&
++         !sZenMicaFailed;
+ }
+ 
+ bool WinUtils::MicaPopupsEnabled() {

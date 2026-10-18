@@ -321,6 +321,7 @@ export class ZenSpacesSwipe {
         element.style.setProperty("--zen-background-opacity", "1");
       }
     );
+    gZenThemePicker.windowTint.releaseOld();
     delete ws._hasAnimatedBackgrounds;
     ws.updateTabsContainers();
     document.removeEventListener("popupshown", this, { once: true });

@@ -28,6 +28,26 @@
       <hbox>
         <toolbarbutton id="PanelUI-zen-gradient-generator-color-page-left" class="toolbarbutton-1" disabled="true" />
         <hbox id="PanelUI-zen-gradient-generator-color-pages">
+# Window tints. Keep in sync with TINT_PRESETS in ZenWindowTint.mjs.
+          <hbox>
+            <box class="no-squircles" data-tint-preset="midnight" data-l10n-id="zen-panel-ui-tint-midnight"
+                style="--zen-tint-swatch: linear-gradient(to bottom right, #0F172A, #1E3A8A, #312E81);" />
+            <box class="no-squircles" data-tint-preset="blue-violet" data-l10n-id="zen-panel-ui-tint-blue-violet"
+                style="--zen-tint-swatch: linear-gradient(to bottom right, #1F5FBF, #6D28D9);" />
+            <box class="no-squircles" data-tint-preset="navy-teal" data-l10n-id="zen-panel-ui-tint-navy-teal"
+                style="--zen-tint-swatch: linear-gradient(to bottom right, #0A1A3A, #0E6E6E);" />
+            <box class="no-squircles" data-tint-preset="charcoal-blue" data-l10n-id="zen-panel-ui-tint-charcoal-blue"
+                style="--zen-tint-swatch: linear-gradient(to bottom right, #1F1F1F, #1E3A5F);" />
+            <box class="no-squircles" data-tint-preset="blue" data-l10n-id="zen-panel-ui-tint-blue"
+                style="--zen-tint-swatch: #1F5FBF;" />
+            <box class="no-squircles" data-tint-preset="dark-blue" data-l10n-id="zen-panel-ui-tint-dark-blue"
+                style="--zen-tint-swatch: #0A1A3A;" />
+            <box class="no-squircles" data-tint-preset="grey" data-l10n-id="zen-panel-ui-tint-grey"
+                style="--zen-tint-swatch: #5A5A5A;" />
+            <box class="no-squircles" data-tint-preset="dark-grey" data-l10n-id="zen-panel-ui-tint-dark-grey"
+                style="--zen-tint-swatch: #121212;" />
+            <box class="no-squircles" data-tint-preset="none" data-l10n-id="zen-panel-ui-tint-none" />
+          </hbox>
           <hbox>
             <box class="no-squircles" data-lightness="95" data-algo="float" data-num-dots="1" data-position="330,248" data-color="242, 234, 228" style="background: rgb(242, 234, 228);"></box>
             <box class="no-squircles" data-lightness="95" data-algo="float" data-num-dots="1" data-position="282,127" data-color="242, 155, 187" style="background: rgb(242, 155, 187);"></box>

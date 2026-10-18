@@ -67,6 +67,27 @@ zen-panel-ui-gradient-click-to-add = Click to add a color
 zen-panel-ui-gradient-generator-texture =
     .tooltiptext = Click or swipe to change the texture style
 
+## Window tints offered in the theme picker. They only show in dark mode.
+
+zen-panel-ui-tint-midnight =
+    .tooltiptext = Midnight
+zen-panel-ui-tint-blue-violet =
+    .tooltiptext = Blue to violet
+zen-panel-ui-tint-navy-teal =
+    .tooltiptext = Navy to teal
+zen-panel-ui-tint-charcoal-blue =
+    .tooltiptext = Charcoal to blue
+zen-panel-ui-tint-blue =
+    .tooltiptext = Blue
+zen-panel-ui-tint-dark-blue =
+    .tooltiptext = Dark blue
+zen-panel-ui-tint-grey =
+    .tooltiptext = Grey
+zen-panel-ui-tint-dark-grey =
+    .tooltiptext = Dark grey
+zen-panel-ui-tint-none =
+    .tooltiptext = No tint
+
 zen-workspace-creation-name =
     .placeholder = Space Name
 

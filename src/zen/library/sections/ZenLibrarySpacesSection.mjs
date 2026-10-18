@@ -782,7 +782,7 @@ export class ZenLibrarySpacesSection extends MozLitElement {
 
   #themeStyles(workspace) {
     const {
-      gradient,
+      previewGradient,
       toolbarGradient,
       grain,
       isDarkMode,
@@ -794,7 +794,9 @@ export class ZenLibrarySpacesSection extends MozLitElement {
       colorScheme = isDarkMode ? "dark" : "light";
     }
     return {
-      "--zen-main-browser-background": gradient,
+      // Same as the window's background, except that window tints, which the
+      // window draws as a bitmap, get a CSS rendition here.
+      "--zen-main-browser-background": previewGradient,
       "--zen-main-browser-background-toolbar": toolbarGradient,
       "--zen-background-opacity": 1,
       "--zen-grainy-background-opacity": grain,

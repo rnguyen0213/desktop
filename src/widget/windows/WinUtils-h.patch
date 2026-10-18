@@ -1,0 +1,13 @@
+diff --git a/widget/windows/WinUtils.h b/widget/windows/WinUtils.h
+index 3a3f1fe29e467b898e8743ec43331b536fb3f74f..620f9636b65ead851253308e9754fcb5ff3314fe 100644
+--- a/widget/windows/WinUtils.h
++++ b/widget/windows/WinUtils.h
+@@ -597,6 +597,8 @@ class WinUtils {
+   static bool MicaEnabled();
+   static bool MicaPopupsEnabled();
+   static void UpdateMicaInAllWindows();
++  // Zen: called when DWM refuses to set a backdrop on a browser window.
++  static void SetMicaFailed();
+ 
+   static void EnableWindowOcclusion(const bool aEnable);
+ 

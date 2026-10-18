@@ -219,6 +219,31 @@ body,
     /* note: Keep in sync with kGlobalAnimationDuration */
     transition: opacity 0.2s ease-in-out;
   }
+
+  /* Window tint bitmaps, see ZenWindowTintLayer.mjs. They are computed at
+   * the device pixel size and must be shown 1:1, unfiltered. While the window
+   * is being resized, the last bitmap is stretched. */
+  & > .zen-window-tint {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+    image-rendering: pixelated;
+
+    &[data-slot="current"] {
+      opacity: var(--zen-background-opacity);
+    }
+
+    &[data-slot="old"] {
+      opacity: calc(1 - var(--zen-background-opacity));
+    }
+
+    &[hidden] {
+      display: none;
+    }
+  }
 }
 
 #tabbrowser-arrowscrollbox[swipe-gesture] {
@@ -262,6 +287,54 @@ body,
   @media (-moz-windows-accent-color-in-titlebar) and ((-moz-windows-mica) or -moz-pref("browser.theme.windows.accent-color-in-tabs.enabled")) {
     background: ActiveCaption;
     color: CaptionText;
+  }
+}
+
+/* Spaces with a window tint: the tint is drawn over the Windows acrylic
+ * backdrop, which stays the same whether the window is focused or not (see
+ * nsWindow's WM_NCACTIVATE handling). Only the contents dim when inactive. */
+:root[zen-window-tint] {
+  --toolbarbutton-background-color-hover: light-dark(rgba(0, 0, 0, 0.06), rgba(255, 255, 255, 0.08)) !important;
+  --toolbarbutton-background-color-active: light-dark(rgba(0, 0, 0, 0.03), rgba(255, 255, 255, 0.03)) !important;
+
+  @media (-moz-platform: windows) {
+    --inactive-titlebar-opacity: 0.45;
+
+    & #navigator-toolbox {
+      --inactive-titlebar-opacity: 0.45;
+    }
+
+    & #zen-main-app-wrapper {
+      &,
+      &:-moz-window-inactive {
+        background: transparent !important;
+      }
+
+      /* No acrylic (before Windows 11 22H2, or with transparency effects
+       * turned off): a solid base for the tint instead. */
+      /* stylelint-disable-next-line media-query-no-invalid */
+      @media (not (-moz-windows-mica)) or (prefers-reduced-transparency: reduce) {
+        &,
+        &:-moz-window-inactive {
+          background: light-dark(#f3f3f3, #202020) !important;
+        }
+      }
+    }
+
+    /* The window border is drawn by DWM in this case. */
+    &[customtitlebar][sizemode="normal"] #browser {
+      border-top: none;
+    }
+
+    /* .browser-titlebar (#TabsToolbar) already fades with
+     * --inactive-titlebar-opacity, fade the other toolbars along with it. */
+    & :is(#nav-bar, #PersonalToolbar, #zen-appcontent-navbar-container, .titlebar-buttonbox-container):not(#TabsToolbar *, #zen-appcontent-navbar-container *) {
+      transition: opacity var(--inactive-window-transition);
+
+      &:-moz-window-inactive {
+        opacity: var(--inactive-titlebar-opacity);
+      }
+    }
   }
 }
 

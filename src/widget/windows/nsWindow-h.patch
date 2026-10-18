@@ -1,0 +1,38 @@
+diff --git a/widget/windows/nsWindow.h b/widget/windows/nsWindow.h
+index 1e2660589bdc09dd4f87ae431d68fbd268349a19..3166abf6046e7cfe946c342739c8ca0ba3aaf6fb 100644
+--- a/widget/windows/nsWindow.h
++++ b/widget/windows/nsWindow.h
+@@ -291,6 +291,9 @@ class nsWindow final : public nsIWidget {
+ 
+   uint32_t GetMaxTouchPoints() const override;
+   void SetIsEarlyBlankWindow(bool) override;
++  void SetWindowClass(const nsAString& aXulWinType,
++                      const nsAString& aXulWinClass,
++                      const nsAString& aXulWinName) override;
+ 
+   /**
+    * Event helpers
+@@ -332,6 +335,8 @@ class nsWindow final : public nsIWidget {
+   void SetBigIconNoData();
+ 
+   void UpdateMicaBackdrop(bool aForce = false);
++  void ZenUpdateWindowFrame();
++  bool ZenKeepsFrameActive() const;
+ 
+   static void SetIsRestoringSession(const bool aIsRestoringSession) {
+     sIsRestoringSession = aIsRestoringSession;
+@@ -895,6 +900,14 @@ class nsWindow final : public nsIWidget {
+   // Whether we are asked to render a mica backdrop.
+   bool mMicaBackdrop : 1;
+ 
++  // Zen: whether this is a top level browser window (navigator:browser).
++  bool mIsZenBrowserWindow = false;
++  // Zen: whether the last color scheme we were given is dark.
++  bool mZenDarkFrame = false;
++  // Zen: the frame state ZenUpdateWindowFrame() last applied, so it only
++  // talks to DWM when something changed. -1 if nothing was applied yet.
++  int8_t mZenAppliedFrameState = -1;
++
+   int32_t mCachedHitTestResult = 0;
+ 
+   // The point in time at which the last paint completed. We use this to avoid

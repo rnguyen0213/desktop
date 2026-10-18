@@ -752,9 +752,15 @@ class nsZenShareManager extends nsZenDOMOperatedFeature {
     workspace.name = item.name;
     const theme = item.theme;
     if (theme) {
-      workspace.theme = nsZenThemePicker.getTheme(
-        theme.gradientColors.map(color => this.#importGradientColor(color))
+      const colors = theme.gradientColors.map(color =>
+        this.#importGradientColor(color)
       );
+      // The share format has no notion of window tints, but a tint's
+      // colours are shared as-is, so recognize them on the way back in.
+      const tintPreset = nsZenThemePicker.findTintPresetForColors(colors);
+      workspace.theme = tintPreset
+        ? nsZenThemePicker.getTintTheme(tintPreset.id)
+        : nsZenThemePicker.getTheme(colors);
     }
     gZenWorkspaces.saveWorkspace(workspace);
     gZenThemePicker.onWorkspaceChange(workspace);

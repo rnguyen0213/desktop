@@ -10,6 +10,9 @@ EXTRA_JS_MODULES.zen += [
   "ZenSpaceIcons.mjs",
   "ZenSpaceManager.mjs",
   "ZenSpacesSwipe.mjs",
+  "ZenWindowTint.mjs",
+  "ZenWindowTintLayer.mjs",
+  "ZenWindowTintWorker.mjs",
 ]
 
 SOURCES += [

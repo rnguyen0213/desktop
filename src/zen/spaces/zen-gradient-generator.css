@@ -123,6 +123,22 @@
           linear-gradient(to top, var(--c3) 0%, transparent 60%);
       }
 
+      &[data-tint-preset] {
+        background: var(--zen-tint-swatch);
+      }
+
+      /* "No tint": the plain backdrop, crossed out. */
+      &[data-tint-preset="none"] {
+        background:
+          linear-gradient(to top right, transparent calc(50% - 1px), light-dark(rgba(0, 0, 0, 0.45), rgba(255, 255, 255, 0.55)) 50%, transparent calc(50% + 1px)),
+          light-dark(#f3f3f3, #202020);
+      }
+
+      &[selected] {
+        outline: 2px solid var(--zen-primary-color);
+        outline-offset: 2px;
+      }
+
       &:hover {
         transform: scale(1.05);
 
