@@ -29,6 +29,10 @@ export function getTintPreset(id) {
   return TINT_PRESETS.find(preset => preset.id === id) ?? null;
 }
 
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
 /**
  * Parses "#RGB", "#RRGGBB", "#RRGGBBAA" and "rgb()/rgba()" strings.
  *
@@ -128,6 +132,10 @@ export function buildUnpremultiplyTable() {
 
 /**
  * Premultiplies like Gecko does, see buildUnpremultiplyTable().
+ *
+ * @param {number} c Straight channel value, 0..255.
+ * @param {number} a Alpha, 0..255.
+ * @returns {number} The premultiplied channel value.
  */
 export function geckoPremultiply(c, a) {
   const x = c * a + 255;
@@ -144,6 +152,17 @@ export function geckoPremultiply(c, a) {
  *
  * Writes [A, R, G, B] premultiplied per pixel into `out` (4 bytes per pixel,
  * in that order) so callers can choose the byte layout they need.
+ *
+ * @param {Uint8ClampedArray} out Receives (rowEnd - rowStart) rows.
+ * @param {number} width Bitmap width in device pixels.
+ * @param {number} rowStart First row to compute.
+ * @param {number} rowEnd Row to stop before.
+ * @param {object} params
+ * @param {Array<object>} params.stops From createTintSpec().
+ * @param {number} params.windowWidth Window width in device pixels.
+ * @param {number} params.windowHeight Window height in device pixels.
+ * @param {number} [params.offsetX] Bitmap origin inside the window.
+ * @param {number} [params.offsetY] Bitmap origin inside the window.
  */
 export function computeTintRows(out, width, rowStart, rowEnd, params) {
   const { stops, windowWidth, windowHeight, offsetX = 0, offsetY = 0 } = params;
@@ -156,10 +175,9 @@ export function computeTintRows(out, width, rowStart, rowEnd, params) {
     const y = row + offsetY;
     for (let column = 0; column < width; column++, i += 4) {
       const x = column + offsetX;
-      let t = lengthSquared
-        ? ((x + 0.5) * dx + (y + 0.5) * dy) / lengthSquared
+      const t = lengthSquared
+        ? clamp(((x + 0.5) * dx + (y + 0.5) * dy) / lengthSquared, 0, 1)
         : 0;
-      t = t < 0 ? 0 : t > 1 ? 1 : t;
 
       let a, r, g, b;
       if (lastStop === 0) {
@@ -184,19 +202,11 @@ export function computeTintRows(out, width, rowStart, rowEnd, params) {
       const outer = 52.9829189 * (inner - Math.floor(inner));
       const noise = outer - Math.floor(outer);
 
-      let A = Math.floor(a * 255 + noise);
-      A = A < 0 ? 0 : A > 255 ? 255 : A;
-      let R = Math.floor(r * a + noise);
-      let G = Math.floor(g * a + noise);
-      let B = Math.floor(b * a + noise);
-      R = R < 0 ? 0 : R > A ? A : R;
-      G = G < 0 ? 0 : G > A ? A : G;
-      B = B < 0 ? 0 : B > A ? A : B;
-
+      const A = clamp(Math.floor(a * 255 + noise), 0, 255);
       out[i] = A;
-      out[i + 1] = R;
-      out[i + 2] = G;
-      out[i + 3] = B;
+      out[i + 1] = clamp(Math.floor(r * a + noise), 0, A);
+      out[i + 2] = clamp(Math.floor(g * a + noise), 0, A);
+      out[i + 3] = clamp(Math.floor(b * a + noise), 0, A);
     }
   }
 }
@@ -205,6 +215,9 @@ export function computeTintRows(out, width, rowStart, rowEnd, params) {
  * Converts [A, R, G, B] premultiplied pixels (as written by computeTintRows)
  * in place into straight-alpha RGBA for ImageData, such that Gecko's
  * putImageData premultiplies them back to exactly the original values.
+ *
+ * @param {Uint8ClampedArray} pixels Converted in place.
+ * @param {Uint8Array} unpremultiplyTable From buildUnpremultiplyTable().
  */
 export function toImageDataPixels(pixels, unpremultiplyTable) {
   for (let i = 0; i < pixels.length; i += 4) {

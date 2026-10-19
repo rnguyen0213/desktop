@@ -1,5 +1,5 @@
 diff --git a/widget/windows/nsWindow.cpp b/widget/windows/nsWindow.cpp
-index eb3baef67739bf7660e0104d19908108ba8277d7..ecbcef12631dcac1ec6666139006254fb6afe67a 100644
+index eb3baef67739bf7660e0104d19908108ba8277d7..0b26c1a22d0f8aaaceb4e4d46cb0c755101aa1f0 100644
 --- a/widget/windows/nsWindow.cpp
 +++ b/widget/windows/nsWindow.cpp
 @@ -2646,6 +2646,10 @@ void nsWindow::SetColorScheme(const Maybe<ColorScheme>& aScheme) {
@@ -30,7 +30,7 @@ index eb3baef67739bf7660e0104d19908108ba8277d7..ecbcef12631dcac1ec6666139006254f
    if (IsPopup()) {
      // For popups, we need a couple extra tweaks:
      //  * We want the native rounded corners and borders (as otherwise we can't
-@@ -2700,6 +2710,56 @@ void nsWindow::UpdateMicaBackdrop(bool aForce) {
+@@ -2700,6 +2710,72 @@ void nsWindow::UpdateMicaBackdrop(bool aForce) {
    }
  }
  
@@ -54,8 +54,7 @@ index eb3baef67739bf7660e0104d19908108ba8277d7..ecbcef12631dcac1ec6666139006254f
 +
 +  // Without this, "Show accent color on title bars" paints an accent band
 +  // across the top of the window.
-+  const COLORREF caption =
-+      useBackdrop ? DWMWA_COLOR_NONE : DWMWA_COLOR_DEFAULT;
++  const COLORREF caption = useBackdrop ? DWMWA_COLOR_NONE : DWMWA_COLOR_DEFAULT;
 +  const COLORREF border = !useBackdrop    ? DWMWA_COLOR_DEFAULT
 +                          : mZenDarkFrame ? 0x00454545
 +                                          : 0x00D9D9D9;
@@ -73,6 +72,23 @@ index eb3baef67739bf7660e0104d19908108ba8277d7..ecbcef12631dcac1ec6666139006254f
 +  }
 +}
 +
++// Zen: applies the whole frame again, see WM_SETTINGCHANGE. DWM doesn't always
++// bring the backdrop back by itself when transparency effects are turned back
++// on, e.g. when the color scheme changed while they were off.
++void nsWindow::ZenReapplyWindowFrame() {
++  if (!ZenKeepsFrameActive()) {
++    return;
++  }
++  // DWM ignores being given the backdrop it already has, so clear it first.
++  const DWM_SYSTEMBACKDROP_TYPE none = DWMSBT_NONE;
++  ::DwmSetWindowAttribute(mWnd, DWMWA_SYSTEMBACKDROP_TYPE, &none, sizeof none);
++  const BOOL dark = mZenDarkFrame;
++  ::DwmSetWindowAttribute(mWnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &dark,
++                          sizeof dark);
++  mZenAppliedFrameState = -1;
++  UpdateMicaBackdrop(/* aForce = */ true);
++}
++
 +void nsWindow::SetWindowClass(const nsAString& aXulWinType,
 +                              const nsAString& aXulWinClass,
 +                              const nsAString& aXulWinName) {
@@ -87,7 +103,7 @@ index eb3baef67739bf7660e0104d19908108ba8277d7..ecbcef12631dcac1ec6666139006254f
  LayoutDeviceIntMargin nsWindow::NormalWindowNonClientOffset() const {
    MOZ_ASSERT(mCustomNonClient);
    // We're dealing with a "normal" window (not maximized, minimized, or
-@@ -5047,7 +5107,8 @@ bool nsWindow::ProcessMessageInternal(UINT msg, WPARAM& wParam, LPARAM& lParam,
+@@ -5047,7 +5123,8 @@ bool nsWindow::ProcessMessageInternal(UINT msg, WPARAM& wParam, LPARAM& lParam,
        }
  
      case WM_NCACTIVATE: {
@@ -97,7 +113,7 @@ index eb3baef67739bf7660e0104d19908108ba8277d7..ecbcef12631dcac1ec6666139006254f
          break;
        }
  
-@@ -5067,6 +5128,14 @@ bool nsWindow::ProcessMessageInternal(UINT msg, WPARAM& wParam, LPARAM& lParam,
+@@ -5067,8 +5144,26 @@ bool nsWindow::ProcessMessageInternal(UINT msg, WPARAM& wParam, LPARAM& lParam,
        // [1]:
        // https://learn.microsoft.com/en-us/windows/win32/winmsg/wm-ncactivate
        lParam = -1;
@@ -111,8 +127,20 @@ index eb3baef67739bf7660e0104d19908108ba8277d7..ecbcef12631dcac1ec6666139006254f
 +      }
      } break;
  
++    case WM_SETTINGCHANGE:
++      // Zen: "ImmersiveColorSet" comes with dark and light mode, accent color
++      // and transparency effects changes.
++      if (mIsZenBrowserWindow && lParam &&
++          nsDependentString(reinterpret_cast<const wchar_t*>(lParam)) ==
++              u"ImmersiveColorSet"_ns) {
++        ZenReapplyWindowFrame();
++      }
++      break;
++
      case WM_NCPAINT: {
-@@ -7337,7 +7406,9 @@ void nsWindow::UpdateOpaqueRegionInternal() {
+       // ClearType changes often don't send a WM_SETTINGCHANGE message. But
+       // they do seem to always send a WM_NCPAINT message, so let's update on
+@@ -7337,7 +7432,9 @@ void nsWindow::UpdateOpaqueRegionInternal() {
      // glass. Comments in MSDN indicate all values must be set to -1 to get a
      // full sheet of glass.
      margins = {-1, -1, -1, -1};

@@ -1875,6 +1875,9 @@ export class nsZenThemePicker extends nsZenMultiWindowFeature {
    * Returns the window tint preset a theme uses, or null. The preset only
    * counts while the theme's colours are still exactly the preset's, so
    * editing the colours in any other way turns it back into a regular theme.
+   *
+   * @param {object} theme A workspace theme.
+   * @returns {object|null} One of TINT_PRESETS.
    */
   static getThemeTintPreset(theme) {
     const preset = getTintPreset(theme?.tintPreset);
@@ -1897,6 +1900,7 @@ export class nsZenThemePicker extends nsZenMultiWindowFeature {
   }
 
   /**
+   * @param {Array<object>} colors A theme's gradientColors.
    * @returns {object|null} The window tint preset whose colours are exactly
    *   `colors`, if any.
    */
@@ -1932,6 +1936,9 @@ export class nsZenThemePicker extends nsZenMultiWindowFeature {
    *  - previewGradient: a CSS rendition of the window background for small
    *    previews such as the library's space cards.
    *  - tint: what the window tint layer should draw, or null.
+   *
+   * @param {object} theme A workspace theme.
+   * @returns {object}
    */
   getThemeGradients(theme) {
     const colors = theme?.gradientColors ?? [];
@@ -1963,6 +1970,9 @@ export class nsZenThemePicker extends nsZenMultiWindowFeature {
 
   /**
    * A CSS approximation of a tint, for places too small to need dithering.
+   *
+   * @param {object|null} tint From createTintSpec().
+   * @returns {string|null}
    */
   #getTintCSSGradient(tint) {
     if (!tint) {

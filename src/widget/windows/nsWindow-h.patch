@@ -1,5 +1,5 @@
 diff --git a/widget/windows/nsWindow.h b/widget/windows/nsWindow.h
-index 1e2660589bdc09dd4f87ae431d68fbd268349a19..3166abf6046e7cfe946c342739c8ca0ba3aaf6fb 100644
+index 1e2660589bdc09dd4f87ae431d68fbd268349a19..1003caaabce38fc283760fe03a9451d044633abe 100644
 --- a/widget/windows/nsWindow.h
 +++ b/widget/windows/nsWindow.h
 @@ -291,6 +291,9 @@ class nsWindow final : public nsIWidget {
@@ -12,16 +12,17 @@ index 1e2660589bdc09dd4f87ae431d68fbd268349a19..3166abf6046e7cfe946c342739c8ca0b
  
    /**
     * Event helpers
-@@ -332,6 +335,8 @@ class nsWindow final : public nsIWidget {
+@@ -332,6 +335,9 @@ class nsWindow final : public nsIWidget {
    void SetBigIconNoData();
  
    void UpdateMicaBackdrop(bool aForce = false);
 +  void ZenUpdateWindowFrame();
++  void ZenReapplyWindowFrame();
 +  bool ZenKeepsFrameActive() const;
  
    static void SetIsRestoringSession(const bool aIsRestoringSession) {
      sIsRestoringSession = aIsRestoringSession;
-@@ -895,6 +900,14 @@ class nsWindow final : public nsIWidget {
+@@ -895,6 +901,14 @@ class nsWindow final : public nsIWidget {
    // Whether we are asked to render a mica backdrop.
    bool mMicaBackdrop : 1;
  

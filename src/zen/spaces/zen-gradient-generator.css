@@ -130,7 +130,12 @@
       /* "No tint": the plain backdrop, crossed out. */
       &[data-tint-preset="none"] {
         background:
-          linear-gradient(to top right, transparent calc(50% - 1px), light-dark(rgba(0, 0, 0, 0.45), rgba(255, 255, 255, 0.55)) 50%, transparent calc(50% + 1px)),
+          linear-gradient(
+            to top right,
+            transparent calc(50% - 1px),
+            light-dark(rgba(0, 0, 0, 0.45), rgba(255, 255, 255, 0.55)) 50%,
+            transparent calc(50% + 1px)
+          ),
           light-dark(#f3f3f3, #202020);
       }
 
